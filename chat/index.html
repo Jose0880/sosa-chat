@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat en Tiempo Real</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: Arial, sans-serif;
+        }
+
+        body {
+            background-color: #f5f5f5;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .login-container {
+            padding: 20px;
+            text-align: center;
+        }
+
+        .login-container h1 {
+            margin-bottom: 20px;
+            color: #333;
+        }
+
+        .login-form {
+            display: flex;
+            flex-direction: column;
+            max-width: 300px;
+            margin: 0 auto;
+        }
+
+        .login-form input {
+            padding: 10px;
+            margin-bottom: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+
+        .login-form button {
+            padding: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .login-form button:hover {
+            background-color: #45a049;
+        }
+
+        .chat-container {
+            display: none;
+            flex-direction: column;
+            height: 100vh;
+            max-height: 600px;
+        }
+
+        .chat-header {
+            background-color: #4CAF50;
+            color: white;
+            padding: 15px;
+            text-align: center;
+        }
+
+        .user-info {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 15px;
+            background-color: #f9f9f9;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .messages {
+            flex: 1;
+            padding: 15px;
+            overflow-y: auto;
+        }
+
+        .message {
+            margin-bottom: 15px;
+            padding: 10px;
+            border-radius: 5px;
+        }
+
+        .user1-message {
+            background-color: #e6f7ff;
+            border-left: 3px solid #1890ff;
+        }
+
+        .user2-message {
+            background-color: #f6ffed;
+            border-left: 3px solid #52c41a;
+            text-align: right;
+        }
+
+        .message-form {
+            display: flex;
+            padding: 10px;
+            border-top: 1px solid #ddd;
+        }
+
+        .message-form input {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+
+        .message-form button {
+            padding: 10px 15px;
+            margin-left: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .message-form button:hover {
+            background-color: #45a049;
+        }
+
+        .timestamp {
+            font-size: 0.8em;
+            color: #999;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div id="login-container" class="login-container">
+            <h1>Chat en Tiempo Real</h1>
+            <form id="login-form" class="login-form">
+                <input type="text" id="username" placeholder="Ingresa tu nombre de usuario" required>
+                <button type="submit">Entrar al Chat</button>
+            </form>
+        </div>
+
+        <div id="chat-container" class="chat-container">
+            <div class="chat-header">
+                <h1>Chat en Tiempo Real</h1>
+            </div>
+            <div class="user-info">
+                <div id="current-user">Usuario: <span id="user-name"></span></div>
+                <div id="users-count">Usuarios conectados: 0</div>
+            </div>
+            <div id="messages" class="messages"></div>
+            <form id="message-form" class="message-form">
+                <input type="text" id="message-input" placeholder="Escribe un mensaje..." required>
+                <button type="submit">Enviar</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            // Elementos del DOM
+            const loginForm = document.getElementById('login-form');
+            const loginContainer = document.getElementById('login-container');
+            const chatContainer = document.getElementById('chat-container');
+            const userNameSpan = document.getElementById('user-name');
+            const messagesContainer = document.getElementById('messages');
+            const messageForm = document.getElementById('message-form');
+            const messageInput = document.getElementById('message-input');
+            const usersCountElement = document.getElementById('users-count');
+
+            // Variables para el chat
+            let username = '';
+            let userOrder = 0; // 1 para el primer usuario, 2 para el segundo
+            let messages = [];
+
+            // Verificar si el usuario ya está registrado
+            const storedUsername = localStorage.getItem('chatUsername');
+            if (storedUsername) {
+                login(storedUsername);
+            }
+
+            // Función para iniciar sesión
+            function login(name) {
+                username = name;
+                localStorage.setItem('chatUsername', username);
+                userNameSpan.textContent = username;
+
+                // Determinar el orden del usuario
+                determineUserOrder();
+
+                // Cargar mensajes existentes
+                loadMessages();
+
+                // Mostrar el chat y ocultar el login
+                loginContainer.style.display = 'none';
+                chatContainer.style.display = 'flex';
+
+                // Iniciar el intervalo para verificar nuevos mensajes
+                setInterval(loadMessages, 1000);
+            }
+
+            // Determinar si es el primer o segundo usuario
+            function determineUserOrder() {
+                const storedOrder = localStorage.getItem('chatUserOrder');
+                if (storedOrder) {
+                    userOrder = parseInt(storedOrder);
+                } else {
+                    // Si no hay orden guardado en localStorage, verificar si hay usuarios conectados
+                    const connectedUsers = JSON.parse(localStorage.getItem('chatConnectedUsers') || '[]');
+                    if (connectedUsers.length === 0) {
+                        userOrder = 1;
+                    } else if (connectedUsers.length === 1 && connectedUsers[0] !== username) {
+                        userOrder = 2;
+                    } else {
+                        // Si el usuario ya está en la lista, mantener su orden
+                        userOrder = connectedUsers.includes(username) ?
+                            (connectedUsers[0] === username ? 1 : 2) :
+                            (connectedUsers.length < 2 ? 2 : 1);
+                    }
+
+                    localStorage.setItem('chatUserOrder', userOrder.toString());
+                }
+
+                // Actualizar la lista de usuarios conectados
+                let connectedUsers = JSON.parse(localStorage.getItem('chatConnectedUsers') || '[]');
+                if (!connectedUsers.includes(username)) {
+                    connectedUsers.push(username);
+                    localStorage.setItem('chatConnectedUsers', JSON.stringify(connectedUsers));
+                }
+
+                usersCountElement.textContent = `Usuarios conectados: ${connectedUsers.length}`;
+            }
+
+            // Cargar mensajes
+            function loadMessages() {
+                const storedMessages = localStorage.getItem('chatMessages');
+                if (storedMessages) {
+                    const newMessages = JSON.parse(storedMessages);
+
+                    // Si hay nuevos mensajes, actualizar la UI
+                    if (JSON.stringify(newMessages) !== JSON.stringify(messages)) {
+                        messages = newMessages;
+                        updateMessagesUI();
+                    }
+                }
+
+                // Actualizar contador de usuarios
+                const connectedUsers = JSON.parse(localStorage.getItem('chatConnectedUsers') || '[]');
+                usersCountElement.textContent = `Usuarios conectados: ${connectedUsers.length}`;
+            }
+
+            // Actualizar la UI con los mensajes
+            function updateMessagesUI() {
+                messagesContainer.innerHTML = '';
+
+                messages.forEach(msg => {
+                    const messageDiv = document.createElement('div');
+                    const isCurrentUser = msg.username === username;
+                    const isFirstUser = msg.userOrder === 1;
+
+                    messageDiv.className = `message ${isFirstUser ? 'user1-message' : 'user2-message'}`;
+
+                    // Usar h2 para el primer usuario y h3 para el segundo
+                    const messageHeader = document.createElement(isFirstUser ? 'h2' : 'h3');
+                    messageHeader.textContent = `${msg.username}: ${msg.text}`;
+
+                    const timestamp = document.createElement('div');
+                    timestamp.className = 'timestamp';
+                    timestamp.textContent = new Date(msg.timestamp).toLocaleTimeString();
+
+                    messageDiv.appendChild(messageHeader);
+                    messageDiv.appendChild(timestamp);
+                    messagesContainer.appendChild(messageDiv);
+                });
+
+                // Scroll al último mensaje
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            }
+
+            // Enviar un mensaje
+            function sendMessage(text) {
+                if (!text.trim()) return;
+
+                const newMessage = {
+                    username: username,
+                    userOrder: userOrder,
+                    text: text,
+                    timestamp: Date.now()
+                };
+
+                messages.push(newMessage);
+                localStorage.setItem('chatMessages', JSON.stringify(messages));
+
+                // Actualizar UI inmediatamente sin esperar el intervalo
+                updateMessagesUI();
+
+                // Limpiar el input
+                messageInput.value = '';
+            }
+
+            // Event listeners
+            loginForm.addEventListener('submit', function (e) {
+                e.preventDefault();
+                const usernameInput = document.getElementById('username');
+                if (usernameInput.value.trim()) {
+                    login(usernameInput.value.trim());
+                }
+            });
+
+            messageForm.addEventListener('submit', function (e) {
+                e.preventDefault();
+                sendMessage(messageInput.value);
+            });
+
+            // Verificar desconexión de usuarios
+            window.addEventListener('beforeunload', function () {
+                // Eliminar usuario de la lista de conectados
+                let connectedUsers = JSON.parse(localStorage.getItem('chatConnectedUsers') || '[]');
+                connectedUsers = connectedUsers.filter(user => user !== username);
+                localStorage.setItem('chatConnectedUsers', JSON.stringify(connectedUsers));
+            });
+        });
+    </script>
+</body>
+
+</html>
